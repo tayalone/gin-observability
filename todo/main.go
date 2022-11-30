@@ -1,12 +1,33 @@
 package main
 
 import (
+	"context"
+	"log"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
+	ess "github.com/tayalone/go-ess-package/otel"
+)
+
+const (
+	service     = "todo"
+	environment = "dev"
 )
 
 func main() {
+	tp, err := ess.JaegertracerProvider(os.Getenv("JEAGER_ENDPOINT"), service, environment)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	otelCtx := context.Background()
+	defer func(ctx context.Context) {
+		if err := tp.Shutdown(ctx); err != nil {
+			log.Fatal(err)
+		}
+	}(otelCtx)
+
 	r := gin.Default()
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
