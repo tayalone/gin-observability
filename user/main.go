@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tayalone/gin-obserbability/user/nested"
 	ess "github.com/tayalone/go-ess-package/otel"
+	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -43,8 +44,15 @@ func main() {
 	logger, _ := zap.NewProduction(zap.AddStacktrace(zap.ErrorLevel))
 	defer logger.Sync() // flushes buffer, if any
 	sugar := logger.Sugar()
-
 	// // ---------------------------------------------------------
+	// // ---------------------------------------------------------
+	otelLogger := otelzap.New(logger, otelzap.WithMinLevel(zap.DebugLevel), otelzap.WithTraceIDField(true))
+	undo := otelzap.ReplaceGlobals(otelLogger)
+	defer undo()
+
+	otelSugar := otelLogger.Sugar()
+
+	// // ----------------------------------------------------------
 	r := gin.Default()
 
 	r.Use(otelgin.Middleware(service))
@@ -60,7 +68,18 @@ func main() {
 			"input", 1,
 			"ping", Ping{Name: "John", Duraion: 100},
 		)
+
+		otelSugar.Ctx(c.Request.Context()).Infow("return pong otel",
+			"input", 1,
+			"ping", Ping{Name: "John", Duraion: 100},
+		)
+
 		sugar.Warnw("try warn")
+		otelSugar.Ctx(c.Request.Context()).Warnw("return pong otel",
+			"input", 1,
+			"ping", Ping{Name: "John", Duraion: 100},
+		)
+
 		sugar.Errorw("try error")
 		c.JSON(http.StatusOK, gin.H{
 			"message": "pong",
