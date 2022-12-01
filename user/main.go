@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -57,6 +58,15 @@ func main() {
 
 	r.Use(otelgin.Middleware(service))
 
+	// Recovery middleware recovers from any panics and writes a 500 if there was one.
+	r.Use(gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
+		if err, ok := recovered.(string); ok {
+			otelSugar.Ctx(c.Request.Context()).Errorw(err)
+			c.String(http.StatusInternalServerError, fmt.Sprintf("error: %s", err))
+		}
+		c.AbortWithStatus(http.StatusInternalServerError)
+	}))
+
 	// // ---------- router ------------------------
 	r.GET("/ping", func(c *gin.Context) {
 		type Ping struct {
@@ -84,6 +94,10 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "pong",
 		})
+	})
+
+	r.GET("/panic", func(c *gin.Context) {
+		panic("Get Panic")
 	})
 
 	r.GET("/internal-tracing", func(c *gin.Context) {
