@@ -11,10 +11,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tayalone/gin-obserbability/user/nested"
 	ess "github.com/tayalone/go-ess-package/otel"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.uber.org/zap"
 )
 
 const (
@@ -38,17 +40,42 @@ func main() {
 	}(otelCtx)
 
 	// // ---------------------------------------------------------
+	logger, _ := zap.NewProduction(zap.AddStacktrace(zap.ErrorLevel))
+	defer logger.Sync() // flushes buffer, if any
+	sugar := logger.Sugar()
+
+	// // ---------------------------------------------------------
 	r := gin.Default()
 
 	r.Use(otelgin.Middleware(service))
 
 	// // ---------- router ------------------------
 	r.GET("/ping", func(c *gin.Context) {
-		bar(c.Request.Context())
-		delay(c.Request.Context())
-		bar(c.Request.Context())
+		type Ping struct {
+			Name    string `json:"name"`
+			Duraion int    `json:"duraion"`
+		}
+
+		sugar.Infow("return pong",
+			"input", 1,
+			"ping", Ping{Name: "John", Duraion: 100},
+		)
+		sugar.Warnw("try warn")
+		sugar.Errorw("try error")
 		c.JSON(http.StatusOK, gin.H{
 			"message": "pong",
+		})
+	})
+
+	r.GET("/internal-tracing", func(c *gin.Context) {
+		time.Sleep(150 * time.Millisecond)
+
+		nested.Parent(c.Request.Context())
+
+		time.Sleep(100 * time.Millisecond)
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": "ok",
 		})
 	})
 
